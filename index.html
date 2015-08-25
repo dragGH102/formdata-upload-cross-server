@@ -1,0 +1,141 @@
+<!-- recordAudio ==> formData + JSONP request ==> callback -->
+<html>
+<head>
+	<script src="//localhost:9000/livereload.js"></script>
+	<script src="//www.WebRTC-Experiment.com/RecordRTC.js"></script> <!-- RecordRTC -->
+	<script src="https://code.jquery.com/jquery-2.1.4.js"></script>
+	<script>
+
+		var recordObj = undefined, // RecorderRTC obj
+			blob = undefined, // audio file (file only) to send
+			fileName = undefined, // audio file (filename only) to send
+			strToSend = '', // string to send together with the file
+			fd = undefined, // formData object to send
+			url = '', // local php "wrapper"(curl) file
+			forward_url = '' // WS url
+			; 
+			
+	
+  		fd = new FormData(); // we use FormData to simulate an HTML form and therefore attach a file
+
+		// >> RECORD AUDIO
+		// note: here I should check "if (!modernizrAJ.getusermedia) {"
+		navigator.getUserMedia({audio: true}, // auth microphone
+			function (mediaStream) { // success
+				recordObj = RecordRTC(mediaStream, {});
+
+				console.log("start recording");
+				recordObj.startRecording();
+
+				// record for 1s before calling stopRecording();
+				setTimeout(function(){
+					console.log("stop recording");
+					recordObj.stopRecording(function(){
+						console.log("process audio");
+						var blob = recordObj.getBlob();
+
+						// wait until the blob object is stored in blob variable... (busy waiting)
+						while(blob === undefined){
+							console.log("waiting for blob to be ready");
+						}
+
+						fileName = "some_file_name";
+
+						// add blob to FormData object
+						fd.append('audioFile',blob, fileName);
+						/* The blob is receive as...
+							an array "audioFile" which (among other properties) contains...
+					        * name == fileName I specified
+					        * tmp_name => e.g. C:\xampp\tmp\phpBC42.tmp (i.e. some aleatory name which corresponds to the actual file received and stored on the server)
+					        )
+						*/
+						
+						// send blob to server
+
+					  /*
+					   * >> Send formData through POST
+					   * no JSONP or cross-domain requests....
+					  */
+
+					   /*
+					   url = "receiveAll.php";
+
+				       $.ajax({
+				          type: 'POST',
+				          url: url,
+				          data: fd,
+						  processData: false,  // tell jQuery not to process the data
+						  contentType: false,   // tell jQuery not to set contentType
+						  success: function(response){ // NOTE: callback name replaced by "jQuery<some long number>"
+						  	console.log(response);
+						  },
+				          error:function(jqXHR, textStatus, errorThrown){
+				            alert(errorThrown);
+				          }
+				        });*/
+
+						// ! // https://developer.mozilla.org/en-US/docs/Web/Guide/Using_FormData_Objects >> processData & contentType = false
+
+						/* >> NOTE on JSONP:
+
+						JSONP = JSON with padding (to let the CLIENT [i.e. this page] use cross-domain requests despite same-origin policy)
+						>> JSONP relies on injecting a script tag into your page
+						(which is executed despite same-origin policy)
+						
+						Because JSONP relies on the script tag, it doesn’t use the callback features of the underlying HTTPRequest object. This means the success, failure, complete callback functions on the $.ajax() method are irrelevant and nonfunctional when you use JSONP.
+						....
+						*/
+
+						
+
+						/*
+						*  Technique to send the data cross-server
+						*/
+
+						
+						// post data to local server (url) which will forward it directly to the WS (forward_url) via cURL (which has no cross-origin limitations)	
+						url = 'sendData.php'; // replace with ...receiveAll.php to print all the received data GET, POST, ...
+						forward_url = 'http://localhost/audio_upload/file.json'; // full path needed for cUrl
+
+
+						fd.append("forward_url",forward_url);
+						fd.append("strToSend", strToSend);
+
+						
+						// NOTE: jQuery 2.x doens't support IE8 and the APIs are the same as in jQuery 1.9 !
+				       $.ajax({
+				          type: 'POST',
+				          url: url,
+				          data: fd,
+						  processData: false,  // tell jQuery not to process the data
+						  contentType: false,   // tell jQuery not to set contentType
+						  success: function(response){
+						  	console.log("plain WS response follows..");
+						  	console.log(response);
+						  	// finally..parse jSON (string --> jSON) to access it as a JS object
+						  	console.log("jSON (parsed) follows..");
+						  	var resultObj = JSON.parse(response);
+						  	console.log(resultObj);
+							}
+						});
+				    });
+
+
+				},1000);
+
+			}, function (e) {
+			 	console.log(e);
+			});
+
+	</script>
+</head>
+<body>
+	__ HOW TO __ <br>
+	Load page, accept audio permission, check out console.
+	<br>
+	the &ldquo;gateway&rdquo; file is sendData.php (which is the the file which actually forwards the data by using cUrl)
+	<br>
+	<br>
+	NOTE: JSON.parse is invoked after console.log(response) but since receiveAll prints plain text (and not a JSON-compatible text) a syntax error is printed on console (after printing the plain response)
+</body>	
+</html>
